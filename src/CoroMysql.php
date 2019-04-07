@@ -337,7 +337,7 @@ class CoroMysql
      * @param $columns
      * @return CoroMysql
      */
-    public function columns($columns)
+    public function field($columns)
     {
         if (is_array($columns)) {
             $this->queryColumns = implode(',', $columns);
@@ -544,17 +544,19 @@ class CoroMysql
      * 修改了方法名称对于TP的玩家更加友好
      * @param null|string $table
      * @param null|int $limit
-     * @param null|string|array $columns
+     * @param null $fields
      * @return CoroMysql|mixed
+     * @throws ConnectException
      * @throws PrepareQueryException
+     * @throws TableNotSetException
      * @throws WrongOperationException
      * @throws \Throwable
      */
-    public function select($table = null, $limit = null, $columns = null)
+    public function select($table = null, $limit = null, $fields = null)
     {
-        $this->_parserTableName($table)->columns($columns);
+        $this->_parserTableName($table);
         if (!is_null($limit)) $this->limit($limit);
-        if (!is_null($columns)) $this->columns($columns);
+        if (!is_null($fields)) $this->field($fields);
         $this->currentQuery = 'SELECT ' . implode(' ', $this->queryOptions) . ' ' . $this->queryColumns . " FROM " . $this->tableName;
         $stmt = $this->_buildQuery($this->limit);
 
@@ -1526,6 +1528,58 @@ class CoroMysql
         $this->select('information_schema.tables', $count);
         return $this->getTotalCount() == $count;
 
+    }
+
+    /**
+     * 获取数据库中的表
+     * @param string $dbName
+     * @return array
+     * @throws QueryException
+     * @throws QueryTimeoutException
+     */
+    public function getTables($dbName = '')
+    {
+        $exec = empty($dbName) ? "SHOW TABLES" : "SHOW TABLES FROM {$dbName}";
+        $retval = $this->queryUnprepared($exec);
+        $tables = array();
+        foreach ($retval as $index => $val) {
+            $tables[$index] = current($val);
+        }
+        return $tables;
+    }
+
+    /**
+     * 获取某个表的全部字段信息
+     * @param string $tableName
+     * @return array
+     * @throws QueryException
+     * @throws QueryTimeoutException
+     */
+    public function getFields($tableName)
+    {
+
+        list($tableName) = explode(' ', $tableName);
+        if (false === strpos($tableName, '`')) {
+            if (strpos($tableName, '.')) {
+                $tableName = str_replace('.', '`.`', $tableName);
+            }
+            $tableName = '`' . $tableName . '`';
+        }
+        $exec = 'SHOW COLUMNS FROM ' . $tableName;
+        $retval = $this->queryUnprepared($exec);
+        $columns = array();
+        foreach ($retval as $column) {
+            $column = array_change_key_case($column);
+            $columns[$column['field']] = [
+                'name'    => $column['field'],
+                'type'    => $column['type'],
+                'notnull' => (bool)('' === $column['null']), // not null is empty, null is yes
+                'default' => $column['default'],
+                'primary' => (strtolower($column['key']) == 'pri'),
+                'autoinc' => (strtolower($column['extra']) == 'auto_increment'),
+            ];
+        }
+        return $columns;
     }
 
     /**
