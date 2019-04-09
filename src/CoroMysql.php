@@ -291,7 +291,7 @@ class CoroMysql
                 $this->lockInShareMode = true;
             } else {
                 if (!in_array($option, $this->queryOptions)) {
-                    $this->queryOptions[] = $options;
+                    $this->queryOptions[] = $option;
                 }
             }
         }
