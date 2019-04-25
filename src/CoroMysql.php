@@ -188,7 +188,7 @@ class CoroMysql
      * @throws QueryException
      * @throws QueryTimeoutException
      */
-    public function queryUnprepared($query, ?float $timeout = null): array
+    public function queryUnprepared($query, ?float $timeout = null)
     {
         try {
             $this->currentQuery = $this->lastQuery = $query;
