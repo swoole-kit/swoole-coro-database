@@ -72,6 +72,7 @@ class CoroMysql
     // 查询额外配置项
     protected $limit = null;              // 查询limit条件
     protected $tableName = '';            // 表名称
+    protected $tableAlias = '';           // 主操作表的别名
     protected $queryColumns = '*';        // 指定操作列
     protected $nestJoin = false;          // NESTED LOOP JOIN
     protected $forUpdate = false;         // SELECT FOR UPDATE
@@ -300,6 +301,46 @@ class CoroMysql
     }
 
     /**
+     * 设置当前操作表的别名
+     * @param string $name
+     * @return mixed|CoroMysql
+     */
+    function alias($name = '')
+    {
+        $this->tableAlias = $name;
+        return $this;
+    }
+
+    /**
+     * 快速共享锁查询
+     * @param null $table
+     * @param null $limit
+     * @param null $fields
+     * @return mixed|CoroMysql
+     * @throws \Throwable
+     */
+    public function selectLockInShareMode($table = null, $limit = null, $fields = null)
+    {
+        $this->setQueryOption('LOCK IN SHARE MODE');
+        return $this->select($table, $limit, $fields);
+    }
+
+
+    /**
+     * 快速排他锁查询
+     * @param null $table
+     * @param null $limit
+     * @param null $fields
+     * @return mixed|CoroMysql
+     * @throws \Throwable
+     */
+    public function selectForUpdate($table = null, $limit = null, $fields = null)
+    {
+        $this->setQueryOption('FOR UPDATE');
+        return $this->select($table, $limit, $fields);
+    }
+
+    /**
      * 快捷设置返回行数选项
      * @return $this
      * @throws WrongOptionException
@@ -317,6 +358,27 @@ class CoroMysql
      */
     public function table(?string $tableName)
     {
+        if ($tableName == null) {
+            return $this;
+        }
+
+        // 先检测当前是否直接在表名参数加了别名
+        $explodeName = explode(' ', $tableName);
+
+        // table as alias
+        if (count($explodeName) == 3 && $explodeName[1] == 'as') {
+            $this->tableName = $explodeName[0];
+            $this->tableAlias = $explodeName[2];
+            return $this;
+        }
+
+        // table alias
+        if (count($explodeName) == 2) {
+            $this->tableName = $explodeName[0];
+            $this->tableAlias = $explodeName[1];
+            return $this;
+        }
+
         $this->tableName = $tableName;
         return $this;
     }
@@ -557,7 +619,7 @@ class CoroMysql
         $this->_parserTableName($table);
         if (!is_null($limit)) $this->limit($limit);
         if (!is_null($fields)) $this->field($fields);
-        $this->currentQuery = 'SELECT ' . implode(' ', $this->queryOptions) . ' ' . $this->queryColumns . " FROM " . $this->tableName;
+        $this->currentQuery = 'SELECT ' . implode(' ', $this->queryOptions) . ' ' . $this->queryColumns . " FROM " . $this->tableName . ' ' . $this->tableAlias;
         $stmt = $this->_buildQuery($this->limit);
 
         if ($this->isSubQuery) {
@@ -837,8 +899,8 @@ class CoroMysql
     /**
      * 构建一个INSERT/UPDATE语句
      * @param array $tableData 插入或更新的数据
-     * @throws WrongOperationException
      * @return void
+     * @throws WrongOperationException
      */
     protected function _buildInsertQuery($tableData)
     {
@@ -1374,6 +1436,7 @@ class CoroMysql
         // 重置额外配置项
         $this->limit = null;
         $this->tableName = '';
+        $this->tableAlias = '';
         $this->queryColumns = '*';
         $this->nestJoin = false;
         $this->forUpdate = false;
@@ -1748,8 +1811,8 @@ class CoroMysql
 
     /**
      * 将条件和值转换为SQL字符串
-     * @param  String $operator where 查询操作
-     * @param  String|array $val where 操作的值
+     * @param String $operator where 查询操作
+     * @param String|array $val where 操作的值
      */
     private function _conditionToSql($operator, $val)
     {
@@ -1810,22 +1873,18 @@ class CoroMysql
      */
     private function _parserTableName(?string $tableName = null)
     {
-        // 如果传入了null值则使用设置的table值
-        if ($tableName == null) {
-            $tableName = $this->tableName;
-        }
+        $this->table($tableName);  // 直接设置给当前表名称
 
         // 未设置表名称则抛出异常
-        if (empty($tableName)) {
+        if (empty($this->tableName)) {
             throw new TableNotSetException('QueryTable Not Set!');
         }
 
         // 附加查询表前缀
         $tablePrefix = $this->coroMysqlConfig->getPrefix();
         if (!empty($tablePrefix) && strpos($tableName, '.') === false) {
-            $this->tableName = $this->coroMysqlConfig->getPrefix() . $tableName;
-        } else {
-            $this->tableName = $tableName;
+            $this->tableName = $tablePrefix . $this->tableName;
+            return $this;
         }
 
         return $this;
