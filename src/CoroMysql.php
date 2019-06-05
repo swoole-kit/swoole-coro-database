@@ -182,7 +182,7 @@ class CoroMysql
     /**
      * 执行未经预处理的语句
      * 警告: 请勿在生产环境中使用此方法
-     * 由于直接执行的语句并未经过转义或参数绑定 极有可能导致侏注入攻击
+     * 由于直接执行的语句并未经过转义或参数绑定 极有可能导致注入攻击
      * @param string $query 需要执行的查询语句
      * @param float|null $timeout 本次查询超时 优先级高于配置
      * @return mixed
@@ -1889,4 +1889,14 @@ class CoroMysql
 
         return $this;
     }
+
+    /**
+     * 使外部可以获取设置项
+     * @return CoroMysqlConfig
+     */
+    public function getCoroMysqlConfig(): CoroMysqlConfig
+    {
+        return $this->coroMysqlConfig;
+    }
+
 }
