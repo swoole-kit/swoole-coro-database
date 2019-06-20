@@ -1903,7 +1903,7 @@ class CoroMysql
 
     /**
      * 进行分页查询
-     * @param $current
+     * @param $offset
      * @param $limit
      * @param null $table
      * @return CoroPaginator
@@ -1914,12 +1914,12 @@ class CoroMysql
      * @throws WrongOperationException
      * @throws WrongOptionException
      */
-    function paginate($current, $limit, $table = null)
+    function paginate($offset, $limit, $table = null)
     {
         // 页码和每页记录数都不得小于1 否则无意义
         $limit = intval($limit) < 1 ? 1 : intval($limit);
-        $current = intval($current) < 1 ? 1 : intval($current);
-        $items = $this->withTotalCount()->select($table, [$current, $limit]);
+        $offset = intval($offset) < 0 ? 0 : intval($offset);
+        $items = $this->withTotalCount()->select($table, [$offset, $limit]);
         $total = $this->getTotalCount();
 
         // 如果查询失败做一下空判
@@ -1929,6 +1929,7 @@ class CoroMysql
         }
 
         // 开始构建分页对象
+        $current = (int)ceil($offset / $limit) + 1;
         return new CoroPaginator($items, $limit, $current, $total);
     }
 }
