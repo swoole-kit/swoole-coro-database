@@ -8,6 +8,7 @@
 
 namespace SwooleKit\CoroDatabase;
 
+use Exception;
 use Swoole\Coroutine\MySQL as CoroMysqlClient;
 use SwooleKit\CoroDatabase\Exception\ConnectException;
 use SwooleKit\CoroDatabase\Exception\CoroDBException;
@@ -25,6 +26,7 @@ use SwooleKit\CoroDatabase\Exception\QueryException\TableNotSetException;
 use SwooleKit\CoroDatabase\Exception\QueryException\UnlockException;
 use SwooleKit\CoroDatabase\Exception\QueryException\WrongOperationException;
 use SwooleKit\CoroDatabase\Exception\QueryException\WrongOptionException;
+use Throwable;
 
 /**
  * PHP-MySQLi-Database-Class for Swoole CoroMysql
@@ -112,7 +114,7 @@ class CoroMysql
      * 连接到数据库
      * @return bool
      * @throws ConnectException
-     * @throws \Throwable
+     * @throws Throwable
      */
     public function connect(): bool
     {
@@ -139,7 +141,7 @@ class CoroMysql
                     $errno = $this->coroMysqlClient->connect_errno == 0 ? $this->coroMysqlClient->errno : $this->coroMysqlClient->connect_errno;
                     throw new ConnectException("[{$errno}] connect to {$connectDsn} failed: {$error}");
                 }
-            } catch (\Throwable $throwable) {
+            } catch (Throwable $throwable) {
                 if ($throwable instanceof ConnectException) {
                     throw $throwable;
                 } else {
@@ -167,7 +169,7 @@ class CoroMysql
      * 获取当前的数据库连接
      * @return CoroMysqlClient
      * @throws ConnectException
-     * @throws \Throwable
+     * @throws Throwable
      */
     public function coroMysqlClient(): CoroMysqlClient
     {
@@ -199,7 +201,7 @@ class CoroMysql
             } else {
                 return $retval;
             }
-        } catch (\Throwable $throwable) {
+        } catch (Throwable $throwable) {
             $query = $this->currentQuery;
             $this->reset();
             if ($throwable instanceof QueryException) {
@@ -222,7 +224,7 @@ class CoroMysql
      * @throws ExecuteQueryException
      * @throws PrepareQueryException
      * @throws QueryTimeoutException
-     * @throws \Throwable
+     * @throws Throwable
      */
     public function rawQuery($query, array $bindParams = [], ?float $timeout = null)
     {
@@ -249,7 +251,7 @@ class CoroMysql
      * @throws ExecuteQueryException
      * @throws PrepareQueryException
      * @throws QueryTimeoutException
-     * @throws \Throwable
+     * @throws Throwable
      */
     public function rawQueryOne($query, array $bindParams = [], ?float $timeout = null)
     {
@@ -317,7 +319,7 @@ class CoroMysql
      * @param null $limit
      * @param null $fields
      * @return mixed|CoroMysql
-     * @throws \Throwable
+     * @throws Throwable
      */
     public function selectLockInShareMode($table = null, $limit = null, $fields = null)
     {
@@ -332,7 +334,7 @@ class CoroMysql
      * @param null $limit
      * @param null $fields
      * @return mixed|CoroMysql
-     * @throws \Throwable
+     * @throws Throwable
      */
     public function selectForUpdate($table = null, $limit = null, $fields = null)
     {
@@ -612,7 +614,7 @@ class CoroMysql
      * @throws PrepareQueryException
      * @throws TableNotSetException
      * @throws WrongOperationException
-     * @throws \Throwable
+     * @throws Throwable
      */
     public function select($table = null, $limit = null, $fields = null)
     {
@@ -630,7 +632,7 @@ class CoroMysql
             $retval = $this->executeStatement($stmt);
             $this->affectRows = $stmt->affected_rows;
             return $retval;
-        } catch (\Throwable $throwable) {
+        } catch (Throwable $throwable) {
             throw $throwable;
         } finally {
             $this->reset();
@@ -646,7 +648,7 @@ class CoroMysql
      * @return CoroMysql|mixed|null
      * @throws PrepareQueryException
      * @throws WrongOperationException
-     * @throws \Throwable
+     * @throws Throwable
      */
     public function find($table = null, $columns = null)
     {
@@ -671,7 +673,7 @@ class CoroMysql
      * @return CoroMysql|mixed|null
      * @throws PrepareQueryException
      * @throws WrongOperationException
-     * @throws \Throwable
+     * @throws Throwable
      */
     public function column(string $columnName, ?string $table = null, ?int $limit = null, ?string $arrayKey = null)
     {
@@ -693,7 +695,7 @@ class CoroMysql
      * @return CoroMysql|mixed|null
      * @throws PrepareQueryException
      * @throws WrongOperationException
-     * @throws \Throwable
+     * @throws Throwable
      */
     public function value(string $columnName, ?string $table = null)
     {
@@ -717,7 +719,7 @@ class CoroMysql
      * @throws QueryTimeoutException
      * @throws TableNotSetException
      * @throws WrongOperationException
-     * @throws \Throwable
+     * @throws Throwable
      */
     public function insert(array $insertData, $table = null)
     {
@@ -736,7 +738,7 @@ class CoroMysql
      * @throws QueryTimeoutException
      * @throws TableNotSetException
      * @throws WrongOperationException
-     * @throws \Throwable
+     * @throws Throwable
      */
     public function replace(array $insertData, $table = null)
     {
@@ -754,7 +756,7 @@ class CoroMysql
      * @throws PrepareQueryException
      * @throws TableNotSetException
      * @throws WrongOperationException
-     * @throws \Throwable
+     * @throws Throwable
      */
     public function update(array $updateData, ?string $table = null, bool $force = false, ?int $limit = null)
     {
@@ -777,7 +779,7 @@ class CoroMysql
             $status = $this->executeStatement($stmt);
             $this->affectRows = $stmt->affected_rows;
             return $status;
-        } catch (\Throwable $throwable) {
+        } catch (Throwable $throwable) {
             throw $throwable;
         } finally {
             $this->reset();
@@ -793,7 +795,7 @@ class CoroMysql
      * @return null
      * @throws EmptyConditionException
      * @throws TableNotSetException
-     * @throws \Throwable
+     * @throws Throwable
      */
     public function delete(?string $table = null, bool $force = false, ?int $limit = null)
     {
@@ -820,7 +822,7 @@ class CoroMysql
             $this->executeStatement($stmt);
             $this->affectRows = $stmt->affected_rows;
             return ($stmt->affected_rows > -1);    //	affected_rows returns 0 if nothing matched where statement, or required updating, -1 if error
-        } catch (\Throwable $throwable) {
+        } catch (Throwable $throwable) {
             throw $throwable;
         } finally {
             $this->reset();
@@ -838,7 +840,7 @@ class CoroMysql
      * @throws ConnectException
      * @throws PrepareQueryException
      * @throws WrongOperationException
-     * @throws \Throwable
+     * @throws Throwable
      */
     protected function _buildQuery($numRows = null, $tableData = null)
     {
@@ -1077,7 +1079,7 @@ class CoroMysql
      * @throws PrepareQueryException
      * @throws QueryTimeoutException
      * @throws WrongOperationException
-     * @throws \Throwable
+     * @throws Throwable
      */
     protected function _buildInsert($tableName, $insertData, $operation)
     {
@@ -1139,7 +1141,7 @@ class CoroMysql
 
             return $retval;
 
-        } catch (\Throwable $throwable) {
+        } catch (Throwable $throwable) {
             $query = $this->_replacePlaceHolders($this->currentQuery, $bindParams);
             if ($throwable instanceof ExecuteQueryException) {
                 if ($this->coroMysqlClient->errno == 110) {
@@ -1258,7 +1260,7 @@ class CoroMysql
      * @throws ConnectException
      * @throws QueryException
      * @throws QueryTimeoutException
-     * @throws \Throwable
+     * @throws Throwable
      */
     public function startTransaction()
     {
@@ -1280,7 +1282,7 @@ class CoroMysql
      * @throws ConnectException
      * @throws QueryException
      * @throws QueryTimeoutException
-     * @throws \Throwable
+     * @throws Throwable
      */
     public function commit()
     {
@@ -1303,7 +1305,7 @@ class CoroMysql
      * @throws ConnectException
      * @throws QueryException
      * @throws QueryTimeoutException
-     * @throws \Throwable
+     * @throws Throwable
      */
     public function rollback($autocommit = true)
     {
@@ -1453,7 +1455,7 @@ class CoroMysql
      * @param string $str
      * @return mixed
      * @throws ConnectException
-     * @throws \Throwable
+     * @throws Throwable
      */
     public function escape($str)
     {
@@ -1475,7 +1477,7 @@ class CoroMysql
      * @param string $diff 详见文档
      * @param string $func 初始时间
      * @return string 返回时间字符串
-     * @throws \Exception
+     * @throws Exception
      */
     public function interval($diff, $func = "NOW()")
     {
@@ -1511,7 +1513,7 @@ class CoroMysql
      * @param null $diff 详见文档
      * @param string $func 初始时间
      * @return array
-     * @throws \Exception
+     * @throws Exception
      */
     public function now($diff = null, $func = "NOW()")
     {
@@ -1573,7 +1575,7 @@ class CoroMysql
      * @return bool 如果存在则返回true
      * @throws PrepareQueryException
      * @throws WrongOperationException
-     * @throws \Throwable
+     * @throws Throwable
      */
     public function tableExists($tables)
     {
@@ -1651,7 +1653,7 @@ class CoroMysql
      * @return mixed
      * @throws ConnectException
      * @throws PrepareQueryException
-     * @throws \Throwable
+     * @throws Throwable
      */
     protected function _prepareQuery(?float $timeout = null): CoroMysqlClient\Statement
     {
@@ -1662,7 +1664,7 @@ class CoroMysql
                 return $statement;
             }
             throw new PrepareQueryException;
-        } catch (\Throwable $throwable) {
+        } catch (Throwable $throwable) {
             $query = $this->_replacePlaceHolders($this->currentQuery, $this->bindParams);
             $this->reset();
             if ($throwable instanceof PrepareQueryException) {
@@ -1899,4 +1901,34 @@ class CoroMysql
         return $this->coroMysqlConfig;
     }
 
+    /**
+     * 进行分页查询
+     * @param $current
+     * @param $limit
+     * @param null $table
+     * @return CoroPaginator
+     * @throws ConnectException
+     * @throws PrepareQueryException
+     * @throws TableNotSetException
+     * @throws Throwable
+     * @throws WrongOperationException
+     * @throws WrongOptionException
+     */
+    function paginate($current, $limit, $table = null)
+    {
+        // 页码和每页记录数都不得小于1 否则无意义
+        $limit = intval($limit) < 1 ? 1 : intval($limit);
+        $current = intval($current) < 1 ? 1 : intval($current);
+        $items = $this->withTotalCount()->select($table, [$current, $limit]);
+        $total = $this->getTotalCount();
+
+        // 如果查询失败做一下空判
+        if (!$items) {
+            $items = [];
+            $total = 0;
+        }
+
+        // 开始构建分页对象
+        return new CoroPaginator($items, $limit, $current, $total);
+    }
 }
