@@ -8,7 +8,8 @@
     ],
     "require": {
         "php": ">=7.2.0",
-        "ext-swoole": ">=4.3.0"
+        "ext-swoole": ">=4.3.0",
+        "easyswoole/spl": "^1.2"
     },
     "require-dev": {
         "easyswoole/swoole-ide-helper": "^1.2"
