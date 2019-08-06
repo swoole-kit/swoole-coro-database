@@ -9,10 +9,12 @@
     "require": {
         "php": ">=7.2.0",
         "ext-swoole": ">=4.3.0",
-        "easyswoole/spl": "^1.2"
+        "easyswoole/spl": "^1.2",
+        "easyswoole/component": "^1.8"
     },
     "require-dev": {
-        "easyswoole/swoole-ide-helper": "^1.2"
+        "easyswoole/swoole-ide-helper": "^1.2",
+        "topthink/think-orm": "^1.0"
     },
     "autoload": {
         "psr-4": {

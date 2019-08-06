@@ -25,8 +25,9 @@ class CoMysqlConfig extends SplBean
     protected $strictMode = false;  // 严格模式下返回值也将转为强类型
 
     // 超时设置
-    protected $connectTimeOut = -1;  // 开启连接超时
-    protected $executeTimeOut = -1;  // 查询执行超时
+    protected $connectTimeOut = -1;     // 开启连接超时
+    protected $executeTimeOut = -1;     // 查询执行超时
+    protected $poolFetchTimeOut = 0.1;  // 连接池等待超时
 
     // 其他设置
     protected $connectMaxRetryTimes = 1; // 尝试重连次数
@@ -297,6 +298,26 @@ class CoMysqlConfig extends SplBean
     public function setConnectMaxRetryTimes(int $connectMaxRetryTimes): CoMysqlConfig
     {
         $this->connectMaxRetryTimes = $connectMaxRetryTimes;
+        return $this;
+    }
+
+    /**
+     * PoolFetchTimeOut Getter
+     * @return float
+     */
+    public function getPoolFetchTimeOut(): float
+    {
+        return $this->poolFetchTimeOut;
+    }
+
+    /**
+     * PoolFetchTimeOut Setter
+     * @param float $poolFetchTimeOut
+     * @return CoMysqlConfig
+     */
+    public function setPoolFetchTimeOut(float $poolFetchTimeOut): CoMysqlConfig
+    {
+        $this->poolFetchTimeOut = $poolFetchTimeOut;
         return $this;
     }
 }

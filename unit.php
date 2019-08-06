@@ -11,18 +11,19 @@ $coMysqlConfig = new CoMysqlConfig([
     'hostport' => '3306',
     'username' => 'root',
     'password' => 'dd199071',
-    'database' => 'yy_gxfybjcom',
+    'database' => 'mysql',
     'charset'  => 'utf8mb4',
     'prefix'   => 'v9_'
 ]);
 
-/**
- * 创建协程执行测试逻辑
- */
-\Swoole\Coroutine::create(function () use ($coMysqlConfig) {
-    try {
-        $dbConnect = new CoMysql($coMysqlConfig);
-    } catch (Throwable $throwable) {
-        echo PHP_EOL . $throwable->getMessage() . PHP_EOL . PHP_EOL;
-    }
-});
+try {
+    CoMysql::setMysqlConfig($coMysqlConfig);
+    $scheduler = new \Swoole\Coroutine\Scheduler;
+    $scheduler->add(function () {
+        $tables = CoMysql::query('show tables;');
+//        var_dump($tables);
+    });
+    $scheduler->start();
+} catch (Throwable $throwable) {
+    var_dump($throwable->getMessage());
+}
