@@ -12,6 +12,12 @@ class PDOConst
 {
 
     /**
+     * 实际上并没有这个参数
+     * 假装有FLOAT类型 类库内部做了处理
+     */
+    const PARAM_FLOAT = 21;
+
+    /**
      * Represents a boolean data type.
      * @link https://php.net/manual/en/pdo.constants.php#pdo.constants.param-bool
      */

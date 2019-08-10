@@ -11,19 +11,22 @@ $coMysqlConfig = new CoMysqlConfig([
     'hostport' => '3306',
     'username' => 'root',
     'password' => 'dd199071',
-    'database' => 'mysql',
+    'database' => 'yy_gxfybjcom',
     'charset'  => 'utf8mb4',
     'prefix'   => 'v9_'
 ]);
 
 try {
     CoMysql::setMysqlConfig($coMysqlConfig);
-    $scheduler = new \Swoole\Coroutine\Scheduler;
-    $scheduler->add(function () {
-        $tables = CoMysql::query('show tables;');
-//        var_dump($tables);
+    \Swoole\Coroutine::create(function () {
+
+        \Swoole\Coroutine::create(function () {
+            $query = new CoMysql\CoMysqlQuery;
+            $res = $query->getTableFields('v9_log');
+            var_dump($res);
+        });
+
     });
-    $scheduler->start();
 } catch (Throwable $throwable) {
     var_dump($throwable->getMessage());
 }

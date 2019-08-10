@@ -2,10 +2,18 @@
 
 namespace SwooleKit\CoroDatabase\CoMysql;
 
+use Closure;
+use DateTime;
 use EasySwoole\Component\Pool\Exception\PoolEmpty;
 use EasySwoole\Component\Pool\Exception\PoolException;
+use Exception;
+use Generator;
+use PDOStatement;
 use SwooleKit\CoroDatabase\CoMysql;
 use SwooleKit\CoroDatabase\CoMysqlException;
+use think\Model;
+use think\Paginator;
+use Throwable;
 
 /**
  * 查询构造器
@@ -14,7 +22,6 @@ use SwooleKit\CoroDatabase\CoMysqlException;
  */
 class CoMysqlQuery
 {
-
     // 数据库Connection对象
     protected static $connections = [];
 
@@ -69,19 +76,28 @@ class CoMysqlQuery
      * 架构函数
      * @access public
      * @param CoMysqlConnection|null $connection
+     * @throws PoolEmpty
+     * @throws PoolException
+     * @throws CoMysqlException
      */
-    public function __construct(CoMysqlConnection $connection = NULL)
+    public function __construct(CoMysqlConnection $connection = null)
     {
-
+        // 如果给入了链接则始终使用同一链接(不支持多连接切换)
+        $this->connection = is_null($connection) ? CoMysql::getConnection() : $connection;
+        $this->prefix = $this->connection->getConfig('prefix');
     }
 
     /**
      * 创建一个新的查询对象
      * @access public
-     * @return Query
+     * @return CoMysqlQuery
+     * @throws CoMysqlException
+     * @throws PoolEmpty
+     * @throws PoolException
      */
     public function newQuery()
     {
+        return new static($this->connection);
     }
 
     /**
@@ -90,11 +106,39 @@ class CoMysqlQuery
      * @param string $method 方法名称
      * @param array $args 调用参数
      * @return mixed
-     * @throws DbException
      * @throws Exception
      */
     public function __call($method, $args)
     {
+        if (isset(self::$extend[strtolower($method)])) {
+            // 调用扩展查询方法
+            array_unshift($args, $this);
+            return call_user_func_array(self::$extend[strtolower($method)], $args);
+        } elseif (strtolower(substr($method, 0, 5)) == 'getby') {
+            // 根据某个字段获取记录
+            $field = CoMysql::parseName(substr($method, 5));
+            return $this->where($field, '=', $args[0])->find();
+        } elseif (strtolower(substr($method, 0, 10)) == 'getfieldby') {
+            // 根据某个字段获取记录的某个值
+            $name = CoMysql::parseName(substr($method, 10));
+            return $this->where($name, '=', $args[0])->value($args[1]);
+        } elseif (strtolower(substr($method, 0, 7)) == 'whereor') {
+            $name = CoMysql::parseName(substr($method, 7));
+            array_unshift($args, $name);
+            return call_user_func_array([$this, 'whereOr'], $args);
+        } elseif (strtolower(substr($method, 0, 5)) == 'where') {
+            $name = CoMysql::parseName(substr($method, 5));
+            array_unshift($args, $name);
+            return call_user_func_array([$this, 'where'], $args);
+        } elseif ($this->model && method_exists($this->model, 'scope' . $method)) {
+            // 动态调用命名范围
+            $method = 'scope' . $method;
+            array_unshift($args, $this);
+            call_user_func_array([$this->model, $method], $args);
+            return $this;
+        } else {
+            throw new Exception('method not exist:' . ($this->model ? get_class($this->model) : static::class) . '->' . $method);
+        }
     }
 
     /**
@@ -104,57 +148,68 @@ class CoMysqlQuery
      * @param callable $callback
      * @return void
      */
-    public static function extend($method, $callback = NULL)
+    public static function extend($method, $callback = null)
     {
+        if (is_array($method)) {
+            foreach ($method as $key => $val) {
+                self::$extend[strtolower($key)] = $val;
+            }
+        } else {
+            self::$extend[strtolower($method)] = $callback;
+        }
     }
 
     /**
      * 设置当前的数据库Connection对象
      * @access public
-     * @param Connection $connection
+     * @param CoMysqlConnection $connection
      * @return $this
      */
-    public function setConnection(\think\db\Connection $connection)
+    public function setConnection(CoMysqlConnection $connection)
     {
+        $this->connection = $connection;
+        $this->prefix = $this->connection->getConfig('prefix');
+        return $this;
     }
 
     /**
      * 获取当前的数据库Connection对象
      * @access public
-     * @return Connection
+     * @return CoMysqlConnection
      */
     public function getConnection()
     {
+        return $this->connection;
     }
 
-    /**
-     * 指定模型
-     * @access public
-     * @param Model $model 模型对象实例
-     * @return $this
-     */
-    public function model(\think\Model $model)
-    {
-    }
-
-    /**
-     * 获取当前的模型对象
-     * @access public
-     * @return Model|null
-     */
-    public function getModel()
-    {
-    }
-
-    /**
-     * 设置从主库读取数据
-     * @access public
-     * @param bool $all 是否所有表有效
-     * @return $this
-     */
-    public function readMaster($all = NULL)
-    {
-    }
+//    /**
+//     * 指定模型
+//     * @access public
+//     * @param Model $model 模型对象实例
+//     * @return $this
+//     */
+//    public function model(Model $model)
+//    {
+//    }
+//
+//    /**
+//     * 获取当前的模型对象
+//     * @access public
+//     * @return Model|null
+//     */
+//    public function getModel()
+//    {
+//    }
+//
+//    /**
+//     * 设置从主库读取数据
+//     * @access public
+//     * @param bool $all 是否所有表有效
+//     * @return $this
+//     */
+//    public function readMaster($all = NULL)
+//    {
+//    }
 
     /**
      * 指定当前数据表名（不含前缀）
@@ -164,6 +219,8 @@ class CoMysqlQuery
      */
     public function name($name)
     {
+        $this->name = $name;
+        return $this;
     }
 
     /**
@@ -172,35 +229,42 @@ class CoMysqlQuery
      * @param string $name
      * @return string
      */
-    public function getTable($name = NULL)
+    public function getTable($name = '')
     {
+        if (empty($name) && isset($this->options['table'])) {
+            return $this->options['table'];
+        }
+        $name = $name ?: $this->name;
+        return $this->prefix . CoMysql::parseName($name);
     }
 
-    /**
-     * 切换数据库连接
-     * @access public
-     * @param mixed $config 连接配置
-     * @param bool|string $name 连接标识 true 强制重新连接
-     * @return $this
-     * @throws Exception
-     */
-    public function connect($config = NULL, $name = NULL)
-    {
-    }
+//    /**
+//     * 切换数据库连接
+//     * @access public
+//     * @param mixed $config 连接配置
+//     * @param bool|string $name 连接标识 true 强制重新连接
+//     * @return $this
+//     * @throws Exception
+//     */
+//    public function connect($config = NULL, $name = NULL)
+//    {
+//
+//    }
 
     /**
      * 执行查询 返回数据集
      * @access public
      * @param string $sql sql指令
      * @param array $bind 参数绑定
-     * @param boolean $master 是否在主服务器读操作
-     * @param bool|string $class 指定返回的数据集对象
+     * @param boolean $master 是否在主服务器读操作(暂时不用)
+     * @param bool|string $class 指定返回的数据集对象(暂时不用)
      * @return mixed
-     * @throws BindParamException
-     * @throws PDOException
+     * @throws CoMysqlException
+     * @throws Throwable
      */
-    public function query($sql, $bind = NULL, $master = NULL, $class = NULL)
+    public function query($sql, $bind = [], $master = false, $class = false)
     {
+        return $this->connection->query($sql, $bind, $master, $class);
     }
 
     /**
@@ -209,31 +273,33 @@ class CoMysqlQuery
      * @param string $sql sql指令
      * @param array $bind 参数绑定
      * @return int
-     * @throws BindParamException
-     * @throws PDOException
+     * @throws CoMysqlException
+     * @throws Throwable
      */
     public function execute($sql, $bind = NULL)
     {
+        return $this->connection->execute($sql, $bind);
     }
 
-    /**
-     * 监听SQL执行
-     * @access public
-     * @param callable $callback 回调方法
-     * @return void
-     */
-    public function listen($callback)
-    {
-    }
+//    /**
+//     * 监听SQL执行
+//     * @access public
+//     * @param callable $callback 回调方法
+//     * @return void
+//     */
+//    public function listen($callback)
+//    {
+//    }
 
     /**
      * 获取最近插入的ID
      * @access public
-     * @param string $sequence 自增序列名
+     * @param string $sequence 自增序列名(PGSql)
      * @return string
      */
     public function getLastInsID($sequence = NULL)
     {
+        return $this->connection->getLastInsID($sequence);
     }
 
     /**
@@ -243,6 +309,7 @@ class CoMysqlQuery
      */
     public function getNumRows()
     {
+        return $this->connection->getNumRows();
     }
 
     /**
@@ -252,15 +319,17 @@ class CoMysqlQuery
      */
     public function getLastSql()
     {
+        return $this->connection->getLastSql();
     }
 
     /**
      * 获取sql记录
      * @access public
-     * @return string
+     * @return array
      */
     public function getSqlLog()
     {
+        return $this->connection->getSqlLog();
     }
 
     /**
@@ -268,52 +337,61 @@ class CoMysqlQuery
      * @access public
      * @param callable $callback 数据操作方法回调
      * @return mixed
+     * @throws CoMysqlException
+     * @throws Throwable
      */
     public function transaction($callback)
     {
+        return $this->connection->transaction($callback);
     }
 
-    /**
-     * 执行数据库Xa事务
-     * @access public
-     * @param callable $callback 数据操作方法回调
-     * @param array $dbs 多个查询对象或者连接对象
-     * @return mixed
-     * @throws PDOException
-     * @throws \Exception
-     * @throws \Throwable
-     */
-    public function transactionXa($callback, array $dbs = NULL)
-    {
-    }
+//    /**
+//     * 执行数据库Xa事务
+//     * @access public
+//     * @param callable $callback 数据操作方法回调
+//     * @param array $dbs 多个查询对象或者连接对象
+//     * @return mixed
+//     * @throws PDOException
+//     * @throws Exception
+//     * @throws Throwable
+//     */
+//    public function transactionXa($callback, array $dbs = NULL)
+//    {
+//
+//    }
+
 
     /**
      * 启动事务
      * @access public
      * @return void
+     * @throws CoMysqlException
      */
     public function startTrans()
     {
+        $this->connection->startTrans();
     }
 
     /**
      * 用于非自动提交状态下面的查询提交
      * @access public
      * @return void
-     * @throws PDOException
+     * @throws CoMysqlException
      */
     public function commit()
     {
+        $this->connection->commit();
     }
 
     /**
      * 事务回滚
      * @access public
      * @return void
-     * @throws PDOException
+     * @throws CoMysqlException
      */
     public function rollback()
     {
+        $this->connection->rollback();
     }
 
     /**
@@ -322,9 +400,12 @@ class CoMysqlQuery
      * @access public
      * @param array $sql SQL批处理指令
      * @return boolean
+     * @throws CoMysqlException
+     * @throws Throwable
      */
-    public function batchQuery($sql = NULL)
+    public function batchQuery($sql = [])
     {
+        return $this->connection->batchQuery($sql);
     }
 
     /**
@@ -333,8 +414,9 @@ class CoMysqlQuery
      * @param string $name 参数名称
      * @return boolean
      */
-    public function getConfig($name = NULL)
+    public function getConfig($name = '')
     {
+        return $this->connection->getConfig($name);
     }
 
     /**
@@ -343,8 +425,13 @@ class CoMysqlQuery
      * @param string $tableName 数据表名
      * @return array
      */
-    public function getTableFields($tableName = NULL)
+    public function getTableFields($tableName = '')
     {
+        if ('' == $tableName) {
+            $tableName = isset($this->options['table']) ? $this->options['table'] : $this->getTable();
+        }
+
+        return $this->connection->getTableFields($tableName);
     }
 
     /**
@@ -959,8 +1046,8 @@ class CoMysqlQuery
      * 条件查询
      * @access public
      * @param mixed $condition 满足条件（支持闭包）
-     * @param \Closure|array $query 满足条件后执行的查询表达式（闭包或数组）
-     * @param \Closure|array $otherwise 不满足条件后执行
+     * @param Closure|array $query 满足条件后执行的查询表达式（闭包或数组）
+     * @param Closure|array $otherwise 不满足条件后执行
      * @return $this
      */
     public function when($condition, $query, $otherwise = NULL)
@@ -1001,7 +1088,7 @@ class CoMysqlQuery
      *                            var_page:分页变量,
      *                            list_rows:每页数量
      *                            type:分页类名
-     * @return \think\Paginator
+     * @return Paginator
      * @throws DbException
      */
     public function paginate($listRows = NULL, $simple = NULL, $config = NULL)
@@ -1075,7 +1162,7 @@ class CoMysqlQuery
      * 查询缓存
      * @access public
      * @param mixed $key 缓存key
-     * @param integer|\DateTime $expire 缓存有效期
+     * @param integer|DateTime $expire 缓存有效期
      * @param string $tag 缓存标签
      * @return $this
      */
@@ -1297,7 +1384,7 @@ class CoMysqlQuery
     /**
      * 添加查询范围
      * @access public
-     * @param array|string|\Closure $scope 查询范围定义
+     * @param array|string|Closure $scope 查询范围定义
      * @param array $args 参数
      * @return $this
      */
@@ -1650,7 +1737,7 @@ class CoMysqlQuery
     /**
      * 执行查询但只返回PDOStatement对象
      * @access public
-     * @return \PDOStatement|string
+     * @return PDOStatement|string
      */
     public function getPdo()
     {
@@ -1659,8 +1746,8 @@ class CoMysqlQuery
     /**
      * 使用游标查找记录
      * @access public
-     * @param array|string|Query|\Closure $data
-     * @return \Generator
+     * @param array|string|Query|Closure $data
+     * @return Generator
      */
     public function cursor($data = NULL)
     {
@@ -1669,8 +1756,8 @@ class CoMysqlQuery
     /**
      * 查找记录
      * @access public
-     * @param array|string|Query|\Closure $data
-     * @return Collection|array|\PDOStatement|string
+     * @param array|string|Query|Closure $data
+     * @return Collection|array|PDOStatement|string
      * @throws DbException
      * @throws ModelNotFoundException
      * @throws DataNotFoundException
@@ -1702,8 +1789,8 @@ class CoMysqlQuery
     /**
      * 查找单条记录
      * @access public
-     * @param array|string|Query|\Closure $data
-     * @return array|null|\PDOStatement|string|Model
+     * @param array|string|Query|Closure $data
+     * @return array|null|PDOStatement|string|Model
      * @throws DbException
      * @throws ModelNotFoundException
      * @throws DataNotFoundException
@@ -1846,8 +1933,8 @@ class CoMysqlQuery
     /**
      * 查找多条记录 如果不存在则抛出异常
      * @access public
-     * @param array|string|Query|\Closure $data
-     * @return array|\PDOStatement|string|Model
+     * @param array|string|Query|Closure $data
+     * @return array|PDOStatement|string|Model
      * @throws DbException
      * @throws ModelNotFoundException
      * @throws DataNotFoundException
@@ -1859,8 +1946,8 @@ class CoMysqlQuery
     /**
      * 查找单条记录 如果不存在则抛出异常
      * @access public
-     * @param array|string|Query|\Closure $data
-     * @return array|\PDOStatement|string|Model
+     * @param array|string|Query|Closure $data
+     * @return array|PDOStatement|string|Model
      * @throws DbException
      * @throws ModelNotFoundException
      * @throws DataNotFoundException
@@ -1872,8 +1959,8 @@ class CoMysqlQuery
     /**
      * 查找单条记录 如果不存在则抛出异常
      * @access public
-     * @param array|string|Query|\Closure $data
-     * @return array|\PDOStatement|string|Model
+     * @param array|string|Query|Closure $data
+     * @return array|PDOStatement|string|Model
      * @throws DbException
      * @throws ModelNotFoundException
      * @throws DataNotFoundException

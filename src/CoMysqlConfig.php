@@ -21,8 +21,8 @@ class CoMysqlConfig extends SplBean
     protected $prefix;    // 表前缀名称
 
     // 链接设置
-    protected $fetchMode = false;   // 允许以POD方式使用fetch/fetchAll方法
-    protected $strictMode = false;  // 严格模式下返回值也将转为强类型
+    protected $fetchMode = true;    // 允许以POD方式使用fetch/fetchAll方法
+    protected $strictMode = true;   // 严格模式下返回值也将转为强类型
 
     // 超时设置
     protected $connectTimeOut = -1;     // 开启连接超时
@@ -187,7 +187,7 @@ class CoMysqlConfig extends SplBean
      */
     public function getPrefix()
     {
-        return $this->prefix;
+        return $this->prefix ?? '';
     }
 
     /**
@@ -211,34 +211,12 @@ class CoMysqlConfig extends SplBean
     }
 
     /**
-     * FetchMode Setter
-     * @param bool $fetchMode
-     * @return CoMysqlConfig
-     */
-    public function setFetchMode(bool $fetchMode): CoMysqlConfig
-    {
-        $this->fetchMode = $fetchMode;
-        return $this;
-    }
-
-    /**
      * StrictMode Getter
      * @return bool
      */
     public function isStrictMode(): bool
     {
         return $this->strictMode;
-    }
-
-    /**
-     * StrictMode Setter
-     * @param bool $strictMode
-     * @return CoMysqlConfig
-     */
-    public function setStrictMode(bool $strictMode): CoMysqlConfig
-    {
-        $this->strictMode = $strictMode;
-        return $this;
     }
 
     /**
