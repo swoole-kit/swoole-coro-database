@@ -56,7 +56,7 @@ class CoroMysql
     protected $stmtError;               // 语句错误文本
     protected $stmtErrno;               // 语句错误码
     protected $lastInsertId;            // 最后插入的id
-    protected $inTransaction = false;   // 当前是否已启动了事务
+    protected $transactionTimes = 0;    // 链接已进入的事务层数
     protected $isSubQuery = false;      // 是否子查询
     protected $reconnectTryTimes = 0;   // 重连尝试次数
     protected $lastQuery = '';          // 最后执行的查询
@@ -1256,6 +1256,7 @@ class CoroMysql
 
     /**
      * 启动事务
+     * 支持进入多级事务
      * @return array|bool|mixed
      * @throws ConnectException
      * @throws QueryException
@@ -1264,20 +1265,21 @@ class CoroMysql
      */
     public function startTransaction()
     {
-        if ($this->inTransaction) {
-            return true;
-        } else {
-            $this->connect();
+        $this->connect();
+        ++$this->transactionTimes;
+        if ($this->transactionTimes == 1) {
             $res = $this->queryUnprepared('start transaction');
-            if ($res) {
-                $this->inTransaction = true;
-            }
-            return $res;
+        } elseif ($this->transactionTimes > 1) {
+            $res = $this->queryUnprepared("savepoint SwCoroTrans_{$this->transactionTimes}");
+        } else {
+            $res = false;
         }
+        return $res;
     }
 
     /**
      * 事务提交
+     * 支持提交多级事务
      * @return array|bool|mixed
      * @throws ConnectException
      * @throws QueryException
@@ -1286,20 +1288,22 @@ class CoroMysql
      */
     public function commit()
     {
-        if ($this->inTransaction) {
-            $this->connect();
+        $this->connect();
+        if ($this->transactionTimes == 1) {
             $res = $this->queryUnprepared('commit');
-            if ($res) {
-                $this->inTransaction = false;
-            }
-            return $res;
+            $this->transactionTimes = 0;
+        } elseif ($this->transactionTimes > 1) {
+            $res = true;
+            --$this->transactionTimes;
         } else {
-            return true;
+            $res = false;
         }
+        return $res;
     }
 
     /**
      * 事务回滚
+     * 支持回滚多级事务
      * @param bool $autocommit
      * @return array|bool|mixed
      * @throws ConnectException
@@ -1309,21 +1313,17 @@ class CoroMysql
      */
     public function rollback($autocommit = true)
     {
-        if ($this->inTransaction) {
-            $this->connect();
+        $this->connect();
+        if ($this->transactionTimes == 1) {
             $res = $this->queryUnprepared('rollback');
-            if ($res && $autocommit) {
-                $res = $this->commit();
-                if ($res) {
-                    $this->inTransaction = false;
-                }
-                return $res;
-            } else {
-                return $res;
-            }
+            $this->transactionTimes = 0;
+        } elseif ($this->transactionTimes > 1) {
+            $res = $this->queryUnprepared("rollback to savepoint SwCoroTrans_{$this->transactionTimes}");
+            $this->transactionTimes = max(0, $this->transactionTimes - 1);
         } else {
-            return true;
+            $res = false;
         }
+        return $res;
     }
 
     /* Get Status Functions */
